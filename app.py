@@ -49,7 +49,7 @@ def main():
                 g = Github(st.secrets["github"]["token"])
                 
                 # 【重要】ご自身のGitHubユーザー名とリポジトリ名に書き換えてください
-                repo = g.get_repo("あなたのユーザー名/リポジトリ名") 
+                repo = g.get_repo("Phantom-IR/TTM-csv-registration") 
                 
                 file_path = "registration_data.csv"
                 
