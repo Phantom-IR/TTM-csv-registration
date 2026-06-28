@@ -1,7 +1,7 @@
 import streamlit as st
-from github import Github
-import base64
+import csv
 import re
+import os
 
 def is_valid_alphanumeric(text, max_length):
     if len(text) > max_length or len(text) == 0:
@@ -16,12 +16,34 @@ def is_valid_name(text, max_length):
 def is_valid_event(text):
     return text in ['3', '4']
 
+def get_next_id(csv_file_path):
+    # ファイルがない場合は最初のIDを返す
+    if not os.path.exists(csv_file_path):
+        return "10001"
+    
+    last_id = 10000
+    try:
+        # CSVファイルを読み込んで一番最後のIDを探す
+        with open(csv_file_path, mode='r', encoding='cp932') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                # 空行をスキップし、1列目が数値のデータを探す
+                if row and row[0].isdigit():
+                    last_id = int(row[0])
+    except Exception:
+        pass
+        
+    # 最後のIDに1を足したものを新しいIDとする
+    return str(last_id + 1)
+
 def main():
     st.title('お客様データ入力フォーム')
     st.write('必要事項を入力して「登録」ボタンを押してください。')
 
     with st.form(key='registration_form'):
-        user_id = st.text_input('ID (半角英数16文字まで)', max_chars=16)
+        # お客様に入力させるID欄を削り、案内文に変更
+        st.write('※IDは登録完了時に自動的に割り当てられます。')
+        
         pw = st.text_input('PW (半角英数16文字まで)', max_chars=16, type='password')
         name = st.text_input('名前 (全角半角16文字まで)', max_chars=16)
         event = st.text_input('種目 (3 または 4)')
@@ -31,8 +53,7 @@ def main():
     if submit_button:
         errors = []
         
-        if not is_valid_alphanumeric(user_id, 16):
-            errors.append('IDは半角英数16文字以内で入力してください。')
+        # IDの検証処理を削除し、その他の項目のみ検証
         if not is_valid_alphanumeric(pw, 16):
             errors.append('PWは半角英数16文字以内で入力してください。')
         if not is_valid_name(name, 16):
@@ -44,33 +65,22 @@ def main():
             for error in errors:
                 st.error(error)
         else:
+            csv_file_path = 'registration_data.csv'
+            
+            # ここで自動的に新しい連番IDを生成する
+            user_id = get_next_id(csv_file_path)
+            
+            if not os.path.exists(csv_file_path):
+                with open(csv_file_path, mode='w', newline='', encoding='cp932') as f:
+                    pass
+            
             try:
-                # 1. GitHubへ接続
-                g = Github(st.secrets["github"]["token"])
+                with open(csv_file_path, mode='a', newline='', encoding='cp932') as file:
+                    writer = csv.writer(file)
+                    writer.writerow([user_id, pw, name, event])
                 
-                # 【重要】ご自身のGitHubユーザー名とリポジトリ名に書き換えてください
-                repo = g.get_repo("Phantom-IR/TTM-csv-registration") 
-                
-                file_path = "registration_data.csv"
-                
-                # 2. 現在のCSVファイルの内容を取得してデコード (Shift-JIS)
-                contents = repo.get_contents(file_path)
-                current_content = base64.b64decode(contents.content).decode('cp932')
-                
-                # 3. 新しいデータを末尾に追加
-                new_row = f"{user_id},{pw},{name},{event}\n"
-                updated_content = current_content + new_row
-                
-                # 4. GitHub上のファイルを更新（コミット）
-                commit_message = f"Add new user data: {user_id}"
-                repo.update_file(
-                    contents.path,
-                    commit_message,
-                    updated_content.encode('cp932'), # Shift-JISに戻して保存
-                    contents.sha
-                )
-                
-                st.success(f'登録が完了しました！ (ID: {user_id})')
+                # 成功メッセージに自動生成されたIDを表示してお客様に伝える
+                st.success(f'登録が完了しました！ (あなたのID: {user_id})')
                 
             except Exception as e:
                 st.error(f'ファイルの保存中にエラーが発生しました: {e}')
